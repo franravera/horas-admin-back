@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Recuperación de Contraseña</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #121212;
+            margin: 0;
+            padding: 0;
+            color: #E0E0E0;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 50px auto;
+            background-color: #1E1E1E;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            padding: 25px;
+            text-align: center;
+        }
+        .header {
+            background-color: #0D47A1;
+            color: #FFFFFF;
+            text-align: center;
+            padding: 20px;
+            font-size: 22px;
+            font-weight: bold;
+            border-radius: 8px 8px 0 0;
+            letter-spacing: 1px;
+        }
+        .content {
+            padding: 20px;
+            font-size: 16px;
+            color: #E0E0E0;
+        }
+        .password-box {
+            background-color: #0D47A1;
+            color: #FFFFFF;
+            padding: 12px;
+            font-size: 20px;
+            font-weight: bold;
+            display: inline-block;
+            border-radius: 5px;
+            margin: 20px 0;
+            letter-spacing: 1px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #A0A0A0;
+            padding: 15px;
+            border-top: 1px solid #333;
+            margin-top: 20px;
+        }
+        .footer a {
+            color: #42A5F5;
+            text-decoration: none;
+        }
+        .button {
+            display: inline-block;
+            background-color: rgb(197, 239, 31);
+            color: rgb(203, 66, 204);
+            padding: 12px 25px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 10s, transform 12s;
+        }
+        .button:hover {
+            background-color: rgb(186, 255, 16);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">🔐 Recuperación de Contraseña</div>
+        <div class="content">
+            <p>Hemos recibido una solicitud para restablecer tu contraseña. Usa la siguiente contraseña temporal para acceder:</p>
+            <div class="password-box">{{mailContent}}</div>
+            <p><small>⚠️ Esta contraseña expira en 1 hora. Si no solicitaste este cambio, ignora este mensaje.</small></p>
+            <a href="#" class="button">Acceder a la Plataforma</a>
+        </div>
+        <div class="footer">
+            &copy; 2025 Alpha-Jor | <a href="https://alpha-jor.com">Visita nuestra web</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,148 @@
+/* Fondo general claro */
+.swagger-ui {
+    background: #f5f7fa;
+    font-family: "Segoe UI", sans-serif;
+  }
+  
+  /* Título animado */
+  .swagger-ui .topbar {
+    background: linear-gradient(90deg, #67b26f, #4ca2cd);
+    animation: colorShift 10s infinite alternate;
+  }
+  @keyframes colorShift {
+    0% { background: #67b26f; }
+    100% { background: #4ca2cd; }
+  }
+  .swagger-ui .topbar a span {
+    color: white !important;
+    font-weight: bold;
+    font-size: 24px;
+    text-shadow: 1px 1px 2px black;
+  }
+  
+  /* Secciones */
+  .swagger-ui .opblock {
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin: 15px 0;
+    transition: transform 0.2s ease-in-out;
+  }
+  .swagger-ui .opblock:hover {
+    transform: scale(1.01);
+  }
+  
+  /* Animación para desplegables */
+  .swagger-ui .opblock-summary {
+    cursor: pointer;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .swagger-ui .opblock-summary:hover {
+    box-shadow: inset 0 -4px 0 rgba(0,0,0,0.1);
+  }
+  
+  /* Métodos HTTP */
+  .opblock-get .opblock-summary-method {
+    background-color: #2196f3 !important;
+  }
+  .opblock-post .opblock-summary-method {
+    background-color: #4caf50 !important;
+  }
+  .opblock-put .opblock-summary-method {
+    background-color: #ff9800 !important;
+  }
+  .opblock-delete .opblock-summary-method {
+    background-color: #f44336 !important;
+  }
+  
+  /* Botones locos */
+  .swagger-ui .btn,
+  .swagger-ui .execute-wrapper .btn {
+    border-radius: 8px;
+    padding: 10px 18px;
+    transition: all 0.3s ease-in-out;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  .swagger-ui .btn:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  }
+  
+  /* Ejecutar (Try it out) botón */
+  .swagger-ui .btn.try-out__btn {
+    background: #4caf50;
+    color: white;
+  }
+  .swagger-ui .btn.try-out__btn:hover {
+    background: #388e3c;
+  }
+  
+  /* Botón cancelar */
+  .swagger-ui .btn.cancel {
+    background: #eeeeee;
+    color: #333;
+  }
+  .swagger-ui .btn.cancel:hover {
+    background: #ddd;
+  }
+  
+  /* Ejecutar (Send request) */
+  .swagger-ui .btn.execute {
+    background: #03a9f4;
+    color: white;
+  }
+  .swagger-ui .btn.execute:hover {
+    background: #0288d1;
+  }
+  
+  /* Copiar código */
+  .swagger-ui .copy-to-clipboard {
+    background-color: #e0e0e0;
+    border-radius: 5px;
+    transition: background 0.2s ease;
+  }
+  .swagger-ui .copy-to-clipboard:hover {
+    background-color: #d5d5d5;
+  }
+  
+  /* Campos de entrada */
+  .swagger-ui input,
+  .swagger-ui textarea {
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    padding: 6px 10px;
+    transition: box-shadow 0.2s ease-in-out;
+  }
+  .swagger-ui input:focus,
+  .swagger-ui textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.3);
+  }
+  
+  /* Tablas de respuesta */
+  .swagger-ui table {
+    border-collapse: collapse;
+  }
+  .swagger-ui table td,
+  .swagger-ui table th {
+    border: 1px solid #ddd;
+    padding: 8px;
+  }
+  .swagger-ui table tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  /* Respuesta destacada */
+  .swagger-ui .responses-inner {
+    background: #ffffff;
+    border-left: 4px solid #4caf50;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    animation: fadeIn 0.5s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
