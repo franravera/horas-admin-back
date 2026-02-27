@@ -35,6 +35,15 @@ export class ChatController {
     return this.chatService.findMessages(Number(limit) || 100, before);
   }
 
+  @Get('stickers/search')
+  async stickersSearch(
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.chatService.searchStickers(q, Number(limit) || 12);
+    return { data, total: data.length };
+  }
+
   @Post('messages')
   async create(@Req() req: any, @Body() dto: CreateChatMessageDto) {
     const message = await this.chatService.createMessage(req.user.id, dto);
