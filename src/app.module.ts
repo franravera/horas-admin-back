@@ -31,6 +31,7 @@ import { diskStorage } from 'multer';
 import { UserSiteModule } from './user-site/user-site.module';
 import { ProyectosModule } from './proyectos/proyectos.module';
 import { HorasModule } from './horas/horas.module';
+import { ChatModule } from './chat/chat.module';
 
 
 
@@ -126,6 +127,7 @@ import { HorasModule } from './horas/horas.module';
     /*Utils: Excel importer - Exporter */
     UtilsModule,
     HorasModule,
+    ChatModule,
     
     /* Users Module */
 
