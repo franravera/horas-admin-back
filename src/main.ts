@@ -20,13 +20,26 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  const allowedOrigins = [
+    "https://adm-consorcio.com",
+    "https://consorciofront.onrender.com",
+    "http://localhost:3000",
+    "http://localhost:4200",
+    "http://localhost:5173",
+    "http://192.168.0.59:4200",
+  ];
+
+  const isLanOrigin = (origin: string) =>
+    /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+    /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin) ||
+    /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin);
+
   app.enableCors({
-    origin: ['https://adm-consorcio.com',
-      "https://consorciofront.onrender.com",  // dominio del frontend en producción
-      "http://localhost:3000",                // para desarrollo local
-      "http://localhost:4200",
-      "http://localhost:5173"
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin) || isLanOrigin(origin)) return callback(null, true);
+      return callback(new Error(`Origin not allowed by CORS: ${origin}`), false);
+    },
     credentials: true,
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     allowedHeaders: "Origin,X-Requested-With,Content-Type,Accept,Authorization",
@@ -101,7 +114,7 @@ async function bootstrap() {
     })
   );
 
-  await app.listen(process.env.PORT);
+  await app.listen(process.env.PORT, "0.0.0.0");
   logger.log(`App running on port ${process.env.PORT}`);
 }
 bootstrap();
