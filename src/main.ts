@@ -27,6 +27,7 @@ async function bootstrap() {
     "http://localhost:4200",
     "http://localhost:5173",
     "http://192.168.0.59:4200",
+    "http://138.219.42.213:4200",
   ];
 
   const isLanOrigin = (origin: string) =>
@@ -102,13 +103,13 @@ async function bootstrap() {
       xXssProtection: true,
       contentSecurityPolicy: {
         directives: {
-          "default-src": ["'self'", "https://consorciofront.onrender.com", "'unsafe-inline'", "data:"],
+          "default-src": ["'self'", "https://consorciofront.onrender.com", "http://138.219.42.213:4200", "'unsafe-inline'", "data:"],
           "media-src": ["'self'", "data:", "'unsafe-inline'"],
           "img-src": ["'self'", "data:"],
-          "script-src": ["'self'", "'unsafe-inline'", "https://consorciofront.onrender.com"],
+          "script-src": ["'self'", "'unsafe-inline'", "https://consorciofront.onrender.com", "http://138.219.42.213:4200"],
           "script-src-attr": ["'self'", "'unsafe-inline'"],
           "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-          "connect-src": ["'self'", "https://consorciofront.onrender.com"],
+          "connect-src": ["'self'", "https://consorciofront.onrender.com", "http://138.219.42.213:4200"],
         },
       },
     })

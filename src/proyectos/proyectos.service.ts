@@ -328,16 +328,16 @@ async findAllPaginated(params: {
         .createQueryBuilder('pm')
         .innerJoin('pm.user', 'u')
         .select([
-          'pm.id as id',
-          'pm.userId as userId',
-          'pm.proyectoId as proyectoId',
-          'pm.rol as rol',
-          'pm.is_active as is_active',
-          'pm.createdAt as assignedAt',
-          'u.email as email',
-          'u.first_name as first_name',
-          'u.last_name as last_name',
-          'u.role as systemRole',
+          'pm.id as "id"',
+          'pm.userId as "userId"',
+          'pm.proyectoId as "proyectoId"',
+          'pm.rol as "rol"',
+          'pm.is_active as "is_active"',
+          'pm.createdAt as "assignedAt"',
+          'u.email as "email"',
+          'u.first_name as "first_name"',
+          'u.last_name as "last_name"',
+          'u.role as "systemRole"',
         ])
         .where('pm.proyectoId = :proyectoId', { proyectoId })
         .andWhere('pm.is_active = true')
