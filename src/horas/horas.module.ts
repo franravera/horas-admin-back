@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { HorasController } from './horas.controller';
 import { HorasService } from './horas.service';
+import { HorasWeeklyReminderService } from './horas-weekly-reminder.service';
 import { Hora } from './entities/hora.entity';
 import { HorasNotificationsGateway } from './horas-notifications.gateway';
 import { Proyecto } from '../proyectos/entities/proyectos.entity';
@@ -13,7 +14,7 @@ import { User } from '../users/entities/user.entity';
 @Module({
   imports: [TypeOrmModule.forFeature([Hora, User, Proyecto]), ProyectosModule],
   controllers: [HorasController],
-  providers: [HorasService, HorasNotificationsGateway],
+  providers: [HorasService, HorasNotificationsGateway, HorasWeeklyReminderService],
   exports: [HorasService],
 })
 export class HorasModule {}

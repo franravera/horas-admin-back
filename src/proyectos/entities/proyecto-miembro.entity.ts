@@ -18,6 +18,9 @@ import {
     DEV = 'DEV',
     PM = 'PM',
     VIEWER = 'VIEWER',
+    MKT = 'MKT',
+    DISENO = 'DISEÑO',
+    QA = 'QA',
   }
   
   @Entity('proyectos_miembros')

@@ -5,6 +5,7 @@ import {
     Injectable,
     NotFoundException,
   } from '@nestjs/common';
+  import { ConfigService } from '@nestjs/config';
   import { InjectRepository } from '@nestjs/typeorm';
   import { Repository } from 'typeorm';
   import * as ExcelJS from 'exceljs';
@@ -30,6 +31,7 @@ import {
       private readonly proyectoRepo: Repository<Proyecto>,
   
       private readonly proyectosService: ProyectosService,
+      private readonly configService: ConfigService,
     ) {}
   
     // =========================================================
@@ -148,8 +150,32 @@ import {
       return { ok: true, userId: hora.userId };
     }
 
-    async getMisNotificaciones(requesterId: string, _requesterRole: Role) {
-      const today = new Date();
+    private getRequiredHoursPerDay() {
+      const raw = Number(this.configService.get<string>('HORAS_REQUIRED_HOURS_PER_DAY') ?? '8');
+      return Number.isFinite(raw) && raw > 0 ? raw : 8;
+    }
+
+    private getTargetMinutes() {
+      return this.getRequiredHoursPerDay() * 60;
+    }
+
+    private startOfDay(date: Date) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    }
+
+    private toYmd(date: Date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+        date.getDate(),
+      ).padStart(2, '0')}`;
+    }
+
+    private parseYmd(value: string) {
+      const [year, month, day] = value.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    private getCurrentWeekRange(referenceDate = new Date()) {
+      const today = this.startOfDay(referenceDate);
       const jsDay = today.getDay(); // 0 dom ... 6 sab
       const monday = new Date(today);
       const deltaToMonday = jsDay === 0 ? -6 : 1 - jsDay;
@@ -158,19 +184,36 @@ import {
       const friday = new Date(monday);
       friday.setDate(monday.getDate() + 4);
 
-      const toYmd = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-          d.getDate(),
-        ).padStart(2, '0')}`;
+      return {
+        today,
+        jsDay,
+        monday,
+        friday,
+        desde: this.toYmd(monday),
+        hasta: this.toYmd(jsDay >= 5 ? friday : today),
+      };
+    }
 
-      const desde = toYmd(monday);
-      const hasta = toYmd(jsDay >= 5 ? friday : today);
+    private getPreviousWeekRange(referenceDate = new Date()) {
+      const { monday } = this.getCurrentWeekRange(referenceDate);
+      const previousMonday = new Date(monday);
+      previousMonday.setDate(monday.getDate() - 7);
 
+      const previousFriday = new Date(previousMonday);
+      previousFriday.setDate(previousMonday.getDate() + 4);
+
+      return {
+        desde: this.toYmd(previousMonday),
+        hasta: this.toYmd(previousFriday),
+      };
+    }
+
+    async getMissingHoursForRange(userId: string, desde: string, hasta: string) {
       const rows = await this.horaRepo
         .createQueryBuilder('h')
         .select('h.fecha', 'fecha')
         .addSelect('COALESCE(SUM(h.minutos), 0)', 'minutos')
-        .where('h.userId = :userId', { userId: requesterId })
+        .where('h.userId = :userId', { userId })
         .andWhere('h.fecha >= :desde', { desde })
         .andWhere('h.fecha <= :hasta', { hasta })
         .groupBy('h.fecha')
@@ -180,15 +223,15 @@ import {
       const byDate = new Map<string, number>();
       rows.forEach((r) => byDate.set(r.fecha, Number(r.minutos ?? 0)));
 
-      const targetMinutes = 9 * 60;
+      const targetMinutes = this.getTargetMinutes();
       const missing: Array<{ fecha: string; faltanHoras: number }> = [];
+      const cursor = this.parseYmd(desde);
+      const end = this.parseYmd(hasta);
 
-      const cursor = new Date(monday);
-      const end = new Date(hasta + 'T00:00:00.000Z');
       while (cursor <= end) {
         const wd = cursor.getDay();
         if (wd >= 1 && wd <= 5) {
-          const dateKey = toYmd(cursor);
+          const dateKey = this.toYmd(cursor);
           const done = byDate.get(dateKey) ?? 0;
           if (done < targetMinutes) {
             missing.push({
@@ -199,6 +242,13 @@ import {
         }
         cursor.setDate(cursor.getDate() + 1);
       }
+
+      return missing;
+    }
+
+    async getMisNotificaciones(requesterId: string, _requesterRole: Role) {
+      const { jsDay, desde, hasta } = this.getCurrentWeekRange();
+      const missing = await this.getMissingHoursForRange(requesterId, desde, hasta);
 
       const notifications: Array<{
         id: string;
@@ -230,8 +280,21 @@ import {
       return {
         desde,
         hasta,
+        requiredHoursPerDay: this.getRequiredHoursPerDay(),
         total: notifications.length,
         notifications,
+      };
+    }
+
+    async getPreviousWeekPendingSummary(userId: string, referenceDate = new Date()) {
+      const { desde, hasta } = this.getPreviousWeekRange(referenceDate);
+      const missing = await this.getMissingHoursForRange(userId, desde, hasta);
+
+      return {
+        desde,
+        hasta,
+        requiredHoursPerDay: this.getRequiredHoursPerDay(),
+        missing,
       };
     }
 

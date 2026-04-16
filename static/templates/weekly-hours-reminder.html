@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Horas pendientes</title>
+  </head>
+  <body style="margin: 0; padding: 0; background: #f3f4f6; font-family: Arial, Helvetica, sans-serif; color: #111827;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #f3f4f6; padding: 32px 16px;">
+      <tr>
+        <td align="center">
+          <table
+            role="presentation"
+            width="100%"
+            cellspacing="0"
+            cellpadding="0"
+            style="max-width: 680px; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 45px rgba(17, 24, 39, 0.12);"
+          >
+            <tr>
+              <td style="background: #000000; padding: 32px 36px; text-align: center;">
+                <img
+                  src="{{LOGO_WHITE_URL}}"
+                  alt="18dev"
+                  width="120"
+                  style="display: block; width: 120px; max-width: 100%; margin: 0 auto 18px;"
+                />
+                <div style="font-size: 12px; letter-spacing: 0.32em; text-transform: uppercase; color: rgba(255,255,255,0.65);">
+                  Time Tracking
+                </div>
+                <h1 style="margin: 18px 0 0; color: #ffffff; font-size: 30px; line-height: 1.15;">
+                  Te faltan completar horas
+                </h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 36px;">
+                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6;">
+                  Hola <strong>{{USER_NAME}}</strong>,
+                </p>
+                <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.7; color: #374151;">
+                  Revisamos tu semana anterior (<strong>{{PERIOD_LABEL}}</strong>) y detectamos días hábiles con menos de
+                  <strong>{{REQUIRED_HOURS}} horas</strong> registradas.
+                </p>
+
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellspacing="0"
+                  cellpadding="0"
+                  style="margin: 24px 0; border: 1px solid #e5e7eb; border-radius: 18px; overflow: hidden; background: #ffffff;"
+                >
+                  <tr>
+                    <td style="padding: 14px 16px; background: #f9fafb; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;">
+                      Día
+                    </td>
+                    <td style="padding: 14px 16px; background: #f9fafb; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; text-align: right;">
+                      Pendiente
+                    </td>
+                  </tr>
+                  {{MISSING_ROWS}}
+                </table>
+
+                <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.7; color: #4b5563;">
+                  Entrá al sistema y completá tu carga para dejar la semana al día.
+                </p>
+
+                <table role="presentation" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td style="border-radius: 999px; background: #111827;">
+                      <a
+                        href="{{CTA_URL}}"
+                        style="display: inline-block; padding: 14px 24px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;"
+                      >
+                        Completar horas
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 0 36px 32px;">
+                <div style="height: 1px; background: #e5e7eb; margin-bottom: 20px;"></div>
+                <p style="margin: 0; font-size: 12px; line-height: 1.7; color: #6b7280;">
+                  Este recordatorio fue enviado automáticamente por HORAS.<br />
+                  <a href="{{BASE_URL}}" style="color: #111827; text-decoration: none; font-weight: 700;">{{BASE_URL}}</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
