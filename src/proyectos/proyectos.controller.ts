@@ -19,7 +19,8 @@ import {
   import { AsignarUsuarioDto } from './dto/asignar-usuario.dto';
   
   import { Auth } from '../auth/decorators/auth.decorator';
-  import { ValidRoles } from '../auth/interfaces';
+import { ValidRoles } from '../auth/interfaces';
+import { UserTeam } from '../users/entities/user.entity';
   import { PaginationDto } from '../common/dtos/pagination.dto';
   
   @ApiTags('proyectos')
@@ -183,12 +184,14 @@ getDashboardAnalytics(
   @Req() req: any,
   @Query('desde') desde: string,
   @Query('hasta') hasta: string,
+  @Query('equipo') equipo?: UserTeam,
 ) {
   return this.proyectosService.getDashboardAnalytics({
     requesterId: req.user.id,
     role: req.user.role,
     desde,
     hasta,
+    equipo,
   });
 }
   }

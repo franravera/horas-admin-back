@@ -88,11 +88,12 @@ export class UsersService {
 
     if (searchInput) {
       usersQuery.andWhere(
-        `user.last_name ilike :lastName OR user.first_name ilike :firstName OR user.email ilike :mail`,
+        `user.last_name ilike :lastName OR user.first_name ilike :firstName OR user.email ilike :mail OR user.equipo ilike :equipo`,
         {
           lastName: `%${searchInput}%`,
           firstName: `%${searchInput}%`,
           mail: `%${searchInput}%`,
+          equipo: `%${searchInput}%`,
         },
       );
     }

@@ -13,7 +13,7 @@ import {
 
   import { Proyecto } from './entities/proyectos.entity';
   import { ProyectoMiembro, ProyectoRol } from './entities/proyecto-miembro.entity';
-  import { User } from '../users/entities/user.entity';
+import { User, UserTeam } from '../users/entities/user.entity';
   
 import { CreateProyectoDto } from './dto/create-proyecto.dto';
 import { AsignarUsuarioDto } from './dto/asignar-usuario.dto';
@@ -590,8 +590,9 @@ async getDashboardAnalytics(params: {
   role: ValidRoles;
   desde: string;
   hasta: string;
+  equipo?: UserTeam;
 }) {
-  const { requesterId, role, desde, hasta } = params;
+  const { requesterId, role, desde, hasta, equipo } = params;
 
   if (!desde || !hasta) {
     throw new BadRequestException('desde y hasta son requeridos (YYYY-MM-DD)');
@@ -604,8 +605,21 @@ async getDashboardAnalytics(params: {
     throw new BadRequestException('Formato inválido. Usá YYYY-MM-DD');
   }
   if (d2 < d1) throw new BadRequestException('hasta no puede ser menor que desde');
+  if (equipo && !Object.values(UserTeam).includes(equipo)) {
+    throw new BadRequestException('equipo inválido');
+  }
 
   const isAdmin = role === ValidRoles.admin;
+  const allowedUsers =
+    isAdmin && equipo
+      ? await this.userRepo
+          .createQueryBuilder('u')
+          .select(['u.id as id'])
+          .where('u.deletedAt IS NULL')
+          .andWhere('u.equipo = :equipo', { equipo })
+          .getRawMany<{ id: string }>()
+      : null;
+  const allowedUserIds = allowedUsers?.map((u) => u.id) ?? null;
 
   const baseQb = this.horaRepo
     .createQueryBuilder('h')
@@ -614,6 +628,12 @@ async getDashboardAnalytics(params: {
 
   if (!isAdmin) {
     baseQb.andWhere('h.userId = :requesterId', { requesterId });
+  } else if (equipo) {
+    if (!allowedUserIds?.length) {
+      baseQb.andWhere('1 = 0');
+    } else {
+      baseQb.andWhere('h.userId IN (:...allowedUserIds)', { allowedUserIds });
+    }
   }
 
   const rawKpi = await baseQb
@@ -784,6 +804,7 @@ async getDashboardAnalytics(params: {
     scope: isAdmin ? 'admin' : 'user',
     desde,
     hasta,
+    equipo: isAdmin ? equipo ?? null : null,
     kpis: {
       minutosTotales,
       horasTotales,

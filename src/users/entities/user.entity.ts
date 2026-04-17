@@ -21,6 +21,11 @@ import { Request } from 'express';
 import { ProyectoMiembro } from "src/proyectos/entities/proyecto-miembro.entity";
 import { Hora } from "src/horas/entities/hora.entity";
 
+export enum UserTeam {
+  MKT = "MKT",
+  DESARROLLO = "Desarrollo",
+  EJECUTIVO = "Ejecutivo",
+}
 
 @Entity("users")
 export class User {
@@ -90,6 +95,17 @@ export class User {
   @ApiProperty({ nullable: true, default: null })
   @Column("int", { nullable: true })
   extension: number = null;
+
+  @ApiProperty({
+    enum: UserTeam,
+    nullable: true,
+    required: false,
+  })
+  @Column("enum", {
+    enum: UserTeam,
+    nullable: true,
+  })
+  equipo?: UserTeam | null;
 
   @ApiHideProperty()
   @CreateDateColumn()

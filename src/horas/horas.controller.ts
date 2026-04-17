@@ -21,6 +21,7 @@ import {
   import { Auth } from '../auth/decorators/auth.decorator';
   import { HorasNotificationsGateway } from './horas-notifications.gateway';
   import { ValidRoles } from '../auth/interfaces';
+  import { UserTeam } from '../users/entities/user.entity';
   
   @ApiTags('horas')
   @ApiBearerAuth()
@@ -78,6 +79,7 @@ import {
     @Query('desde') desde: string,
     @Query('hasta') hasta: string,
     @Query('userId') userId?: string,
+    @Query('equipo') equipo?: UserTeam,
     @Query('theme') theme?: 'light' | 'dark',
   ) {
     const { buffer, fileName } = await this.horasService.exportHorasExcel({
@@ -86,6 +88,7 @@ import {
       desde,
       hasta,
       userId,
+      equipo,
       theme,
     });
 

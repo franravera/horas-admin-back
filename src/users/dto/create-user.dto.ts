@@ -15,7 +15,7 @@ import {
   MinLength,
 } from "class-validator";
 import { ValidRoles } from "src/auth/interfaces";
-import { User } from "../entities/user.entity";
+import { UserTeam } from "../entities/user.entity";
 
 export class CreateUserDto {
   @ApiProperty({
@@ -79,6 +79,15 @@ export class CreateUserDto {
   @IsNumber()
   @IsOptional()
   extension: number = null;
+
+  @ApiProperty({
+    enum: UserTeam,
+    nullable: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(UserTeam)
+  equipo?: UserTeam;
 
   @ApiProperty({ nullable: true, required: false })
   @IsOptional()

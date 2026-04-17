@@ -15,7 +15,7 @@ import {
   import { UpdateHoraDto } from './dto/update-hora.dto';
   
   import { ProyectosService } from '../proyectos/proyectos.service';
-  import { User } from '../users/entities/user.entity';
+  import { User, UserTeam } from '../users/entities/user.entity';
   import { Proyecto } from '../proyectos/entities/proyectos.entity';
   
   type Role = 'admin' | 'editor' | 'user';
@@ -304,9 +304,18 @@ import {
       desde: string;
       hasta: string;
       userId?: string;
+      equipo?: UserTeam;
       theme?: 'light' | 'dark';
     }) {
-      const { requesterId, requesterRole, desde, hasta, userId, theme: requestedTheme } = params;
+      const {
+        requesterId,
+        requesterRole,
+        desde,
+        hasta,
+        userId,
+        equipo,
+        theme: requestedTheme,
+      } = params;
 
       if (!desde || !hasta) {
         throw new BadRequestException('desde y hasta son requeridos (YYYY-MM-DD)');
@@ -314,8 +323,36 @@ import {
       if (hasta < desde) {
         throw new BadRequestException('hasta no puede ser menor que desde');
       }
+      if (equipo && !Object.values(UserTeam).includes(equipo)) {
+        throw new BadRequestException('equipo inválido');
+      }
 
       const targetUserId = requesterRole === 'admin' ? userId : requesterId;
+      const allowedUsers =
+        requesterRole === 'admin' && equipo
+          ? await this.userRepo
+              .createQueryBuilder('u')
+              .select([
+                'u.id as id',
+                'u.email as email',
+                'u.first_name as first_name',
+                'u.last_name as last_name',
+                'u.equipo as equipo',
+              ])
+              .where('u.deletedAt IS NULL')
+              .andWhere('u.equipo = :equipo', { equipo })
+              .orderBy('u.first_name', 'ASC')
+              .addOrderBy('u.last_name', 'ASC')
+              .getRawMany<{
+                id: string;
+                email: string;
+                first_name: string | null;
+                last_name: string | null;
+                equipo: UserTeam | null;
+              }>()
+          : null;
+
+      const allowedUserIds = allowedUsers?.map((u) => u.id) ?? null;
 
       const qb = this.horaRepo
         .createQueryBuilder('h')
@@ -330,6 +367,7 @@ import {
           'u.email as "email"',
           'u.first_name as "first_name"',
           'u.last_name as "last_name"',
+          'u.equipo as "equipo"',
           'p.id as "proyectoId"',
           'p.nombre as "proyectoNombre"',
         ])
@@ -342,6 +380,13 @@ import {
       if (requesterRole !== 'admin' || targetUserId) {
         qb.andWhere('h.userId = :targetUserId', { targetUserId });
       }
+      if (requesterRole === 'admin' && equipo) {
+        if (!allowedUserIds?.length) {
+          qb.andWhere('1 = 0');
+        } else {
+          qb.andWhere('h.userId IN (:...allowedUserIds)', { allowedUserIds });
+        }
+      }
 
       const rows = await qb.getRawMany<{
         id: string;
@@ -352,6 +397,7 @@ import {
         email: string;
         first_name: string | null;
         last_name: string | null;
+        equipo: UserTeam | null;
         proyectoId: string;
         proyectoNombre: string;
       }>();
@@ -439,27 +485,36 @@ import {
       summary.getCell('A2').value = `Rango: ${desde} a ${hasta}`;
       summary.getCell('A2').font = { italic: true, color: { argb: theme.muted } };
       summary.getCell('A2').alignment = { vertical: 'middle', horizontal: 'left' };
+      if (equipo) {
+        summary.mergeCells('A3:B3');
+        summary.getCell('A3').value = `Equipo: ${equipo}`;
+        summary.getCell('A3').font = { italic: true, color: { argb: theme.muted } };
+        summary.getCell('A3').alignment = { vertical: 'middle', horizontal: 'left' };
+      }
       summary.addRow([]);
 
       const allUsers =
         requesterRole === 'admin' && !targetUserId
-          ? await this.userRepo
+          ? allowedUsers ??
+            (await this.userRepo
               .createQueryBuilder('u')
-              .select(['u.id as id', 'u.email as email', 'u.first_name as first_name', 'u.last_name as last_name'])
+              .select([
+                'u.id as id',
+                'u.email as email',
+                'u.first_name as first_name',
+                'u.last_name as last_name',
+                'u.equipo as equipo',
+              ])
               .where('u.deletedAt IS NULL')
               .orderBy('u.first_name', 'ASC')
               .addOrderBy('u.last_name', 'ASC')
-              .getRawMany<{ id: string; email: string; first_name: string | null; last_name: string | null }>()
-          : [];
-
-      const allProjects =
-        requesterRole === 'admin' && !targetUserId
-          ? await this.proyectoRepo
-              .createQueryBuilder('p')
-              .select(['p.id as id', 'p.nombre as nombre'])
-              .where('p.deletedAt IS NULL')
-              .orderBy('p.nombre', 'ASC')
-              .getRawMany<{ id: string; nombre: string }>()
+              .getRawMany<{
+                id: string;
+                email: string;
+                first_name: string | null;
+                last_name: string | null;
+                equipo: UserTeam | null;
+              }>())
           : [];
 
       const byUser = new Map<string, typeof rows>();
@@ -491,6 +546,7 @@ import {
             email: 'sin-email',
             first_name: '',
             last_name: '',
+            equipo: null,
           };
         const fullName = `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.email;
         const ws = workbook.addWorksheet(safeSheet(fullName));
@@ -513,6 +569,11 @@ import {
         ws.mergeCells('A3:D3');
         ws.getCell('A3').value = `Rango: ${desde} a ${hasta}`;
         ws.getCell('A3').font = { italic: true, color: { argb: theme.muted } };
+        if (u.equipo) {
+          ws.mergeCells('A4:D4');
+          ws.getCell('A4').value = `Equipo: ${u.equipo}`;
+          ws.getCell('A4').font = { italic: true, color: { argb: theme.muted } };
+        }
         ws.addRow([]);
 
         const headerRow = ws.addRow(['Fecha', 'Proyecto', 'Descripcion / Tarea', 'Horas']);
@@ -612,14 +673,6 @@ import {
         0,
       );
 
-      if (requesterRole === 'admin' && !targetUserId) {
-        allProjects.forEach((p) => {
-          if (!totalsByProjectGlobal.has(p.nombre)) {
-            totalsByProjectGlobal.set(p.nombre, 0);
-          }
-        });
-      }
-
       const k1 = summary.addRow(['Total horas (rango)', Number((grandTotalMinutes / 60).toFixed(2))]);
       const k2 = summary.addRow(['Usuarios considerados', totalsByUserGlobal.size]);
       const k3 = summary.addRow(['Proyectos con carga', totalsByProjectGlobal.size]);
@@ -674,9 +727,10 @@ import {
       }
 
       const buffer = await workbook.xlsx.writeBuffer();
+      const safeTeam = equipo ? `-${equipo.toLowerCase().replace(/\s+/g, '-')}` : '';
       return {
         buffer,
-        fileName: `horas-${desde}-${hasta}.xlsx`,
+        fileName: `horas-${desde}-${hasta}${safeTeam}.xlsx`,
       };
     }
   }
