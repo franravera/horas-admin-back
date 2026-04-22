@@ -18,7 +18,7 @@ import {
     DEV = 'DEV',
     PM = 'PM',
     VIEWER = 'VIEWER',
-    MKT = 'MKT',
+    EJECUTIVO = 'EJECUTIVO',
     DISENO = 'DISEÑO',
     QA = 'QA',
   }

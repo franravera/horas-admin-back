@@ -1,4 +1,4 @@
-import {
+  import {
     BadRequestException,
     ConflictException,
     ForbiddenException,
@@ -7,7 +7,8 @@ import {
   } from '@nestjs/common';
   import { ConfigService } from '@nestjs/config';
   import { InjectRepository } from '@nestjs/typeorm';
-  import { Repository } from 'typeorm';
+  import { Readable } from 'stream';
+  import { DataSource, Repository } from 'typeorm';
   import * as ExcelJS from 'exceljs';
   
   import { Hora } from './entities/hora.entity';
@@ -32,6 +33,7 @@ import {
   
       private readonly proyectosService: ProyectosService,
       private readonly configService: ConfigService,
+      private readonly dataSource: DataSource,
     ) {}
   
     // =========================================================
@@ -169,6 +171,13 @@ import {
       ).padStart(2, '0')}`;
     }
 
+    private toUtcYmd(date: Date) {
+      return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(
+        2,
+        '0',
+      )}-${String(date.getUTCDate()).padStart(2, '0')}`;
+    }
+
     private parseYmd(value: string) {
       const [year, month, day] = value.split('-').map(Number);
       return new Date(year, month - 1, day);
@@ -295,6 +304,445 @@ import {
         hasta,
         requiredHoursPerDay: this.getRequiredHoursPerDay(),
         missing,
+      };
+    }
+
+    private normalizeProjectName(value: string) {
+      return value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    private normalizeProjectExactName(value: string) {
+      return value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    private normalizeHeader(value: unknown) {
+      return this.normalizeProjectName(String(value ?? ''));
+    }
+
+    private toExcelDateYmd(value: unknown): string | null {
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return this.toUtcYmd(value);
+      }
+
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+        const asDate = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+        return this.toUtcYmd(asDate);
+      }
+
+      if (typeof value === 'string') {
+        const raw = value.trim();
+        if (!raw) return null;
+        if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+          return raw.slice(0, 10);
+        }
+
+        const parsed = new Date(raw);
+        if (!Number.isNaN(parsed.getTime())) {
+          return this.toUtcYmd(parsed);
+        }
+      }
+
+      return null;
+    }
+
+    private parseHoursNumber(value: unknown): number | null {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value > 0 ? value : null;
+      }
+
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.getHours() + value.getMinutes() / 60 + value.getSeconds() / 3600;
+      }
+
+      if (typeof value === 'string') {
+        const raw = value.trim();
+        if (!raw || raw === '-') return null;
+        const normalized = raw.replace(',', '.');
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+      }
+
+      return null;
+    }
+
+    private parseTimeHours(value: unknown): number | null {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+      }
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.getHours() + value.getMinutes() / 60 + value.getSeconds() / 3600;
+      }
+      if (typeof value === 'string') {
+        const raw = value.trim();
+        if (!raw || raw === '-') return null;
+        const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+        if (hhmm) {
+          return Number(hhmm[1]) + Number(hhmm[2]) / 60;
+        }
+        const normalized = raw.replace(',', '.');
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+      return null;
+    }
+
+    private splitProjectCandidates(value: unknown): string[] {
+      const raw = String(value ?? '')
+        .replace(/\r?\n/g, ' ')
+        .trim();
+
+      if (!raw) return [];
+
+      return raw
+        .split(/\s*\/\/\s*/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+    }
+
+    async importHorasFromExcel(params: {
+      requesterId: string;
+      requesterRole: Role;
+      userEmail: string;
+      filePath?: string;
+      fileBuffer?: Buffer;
+    }) {
+      const { requesterRole, userEmail, filePath, fileBuffer } = params;
+
+      if (requesterRole !== 'admin') {
+        throw new ForbiddenException('Solo un admin puede importar horas por Excel.');
+      }
+
+      const email = userEmail.trim().toLowerCase();
+      if (!email) {
+        throw new BadRequestException('email es requerido');
+      }
+
+      const user = await this.userRepo
+        .createQueryBuilder('u')
+        .where('LOWER(u.email) = :email', { email })
+        .andWhere('u.deletedAt IS NULL')
+        .getOne();
+
+      if (!user) {
+        throw new NotFoundException(`No existe un usuario con email ${userEmail}.`);
+      }
+
+      const assignedProjects = await this.proyectoRepo
+        .createQueryBuilder('p')
+        .innerJoin('p.miembros', 'pm', 'pm.userId = :userId AND pm.is_active = true', {
+          userId: user.id,
+        })
+        .where('p.deletedAt IS NULL')
+        .select(['p.id as id', 'p.nombre as nombre'])
+        .getRawMany<{ id: string; nombre: string }>();
+
+      if (assignedProjects.length === 0) {
+        throw new BadRequestException(
+          `El usuario ${user.email} no tiene proyectos activos asignados para imputar horas.`,
+        );
+      }
+
+      const projectByExactName = new Map<string, Array<{ id: string; nombre: string }>>();
+      const projectByNormalizedName = new Map<string, Array<{ id: string; nombre: string }>>();
+      for (const project of assignedProjects) {
+        const exactKey = this.normalizeProjectExactName(project.nombre);
+        const normalizedKey = this.normalizeProjectName(project.nombre);
+
+        projectByExactName.set(exactKey, [
+          ...(projectByExactName.get(exactKey) ?? []),
+          project,
+        ]);
+
+        projectByNormalizedName.set(normalizedKey, [
+          ...(projectByNormalizedName.get(normalizedKey) ?? []),
+          project,
+        ]);
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      if (fileBuffer?.length) {
+        await workbook.xlsx.read(Readable.from(fileBuffer));
+      } else if (filePath) {
+        await workbook.xlsx.readFile(filePath);
+      } else {
+        throw new BadRequestException('No se pudo leer el archivo Excel enviado.');
+      }
+
+      if (workbook.worksheets.length === 0) {
+        throw new BadRequestException('El Excel no contiene hojas para importar.');
+      }
+
+      const pendingRows: Array<{
+        fecha: string;
+        proyectoId: string;
+        proyectoNombre: string;
+        minutos: number;
+        descripcion?: string | null;
+      }> = [];
+      const ignoredRows: Array<{ sheet: string; row: number; reason: string }> = [];
+      const errors: Array<{ sheet: string; row: number; reason: string }> = [];
+      let importedSourceRows = 0;
+
+      for (const sheet of workbook.worksheets) {
+        if (sheet.rowCount < 2) continue;
+
+        const headerRow = sheet.getRow(1);
+        const headers = Array.from({ length: headerRow.actualCellCount }, (_, idx) =>
+          this.normalizeHeader(headerRow.getCell(idx + 1).value),
+        );
+
+        const fechaIndex = headers.findIndex((h) => h === 'fecha') + 1;
+        const proyectoIndex = headers.findIndex((h) => h === 'proyecto') + 1;
+        const tareaIndex = headers.findIndex((h) => h === 'tarea') + 1;
+        const totalHorasIndex =
+          headers.findIndex((h) => h === 'total de horas' || h === 'horas') + 1;
+        const horaInicioIndex = headers.findIndex((h) => h === 'hora inicio') + 1;
+        const horaFinIndex = headers.findIndex((h) => h === 'hora de fin') + 1;
+
+        if (!fechaIndex || !proyectoIndex || (!totalHorasIndex && !(horaInicioIndex && horaFinIndex))) {
+          errors.push({
+            sheet: sheet.name,
+            row: 1,
+            reason:
+              'La hoja no tiene una estructura soportada. Debe incluir Fecha, Proyecto y Horas/Total de horas.',
+          });
+          continue;
+        }
+
+        for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+          const row = sheet.getRow(rowNumber);
+          const rawFecha = row.getCell(fechaIndex).value;
+          const rawProyecto = row.getCell(proyectoIndex).value;
+          const rawTarea = tareaIndex ? row.getCell(tareaIndex).value : null;
+          const rawTotalHoras = totalHorasIndex ? row.getCell(totalHorasIndex).value : null;
+          const rawInicio = horaInicioIndex ? row.getCell(horaInicioIndex).value : null;
+          const rawFin = horaFinIndex ? row.getCell(horaFinIndex).value : null;
+
+          const firstCellText = String(rawFecha ?? '').trim().toLowerCase();
+          const projectCellText = String(rawProyecto ?? '').trim().toLowerCase();
+          const isCompletelyEmpty =
+            row.actualCellCount === 0 &&
+            !rawFecha &&
+            !rawProyecto &&
+            !rawTarea &&
+            !rawTotalHoras &&
+            !rawInicio &&
+            !rawFin;
+
+          if (isCompletelyEmpty) {
+            continue;
+          }
+
+          if (
+            firstCellText.startsWith('total ') ||
+            projectCellText === 'feriado'
+          ) {
+            ignoredRows.push({
+              sheet: sheet.name,
+              row: rowNumber,
+              reason: 'Fila de resumen/feriado ignorada.',
+            });
+            continue;
+          }
+
+          const fecha = this.toExcelDateYmd(rawFecha);
+          if (!fecha) {
+            errors.push({
+              sheet: sheet.name,
+              row: rowNumber,
+              reason: `Fecha inválida: ${String(rawFecha ?? '')}`,
+            });
+            continue;
+          }
+
+          let horas = this.parseHoursNumber(rawTotalHoras);
+          if (!horas && horaInicioIndex && horaFinIndex) {
+            const start = this.parseTimeHours(rawInicio);
+            const end = this.parseTimeHours(rawFin);
+            if (start !== null && end !== null && end > start) {
+              horas = end - start;
+            }
+          }
+
+          if (!horas || horas <= 0) {
+            ignoredRows.push({
+              sheet: sheet.name,
+              row: rowNumber,
+              reason: 'Fila sin horas positivas para importar.',
+            });
+            continue;
+          }
+
+          const projectCandidates = this.splitProjectCandidates(rawProyecto);
+          if (projectCandidates.length === 0) {
+            errors.push({
+              sheet: sheet.name,
+              row: rowNumber,
+              reason: 'La fila no tiene proyecto.',
+            });
+            continue;
+          }
+
+          const matchedProjects: Array<{ id: string; nombre: string }> = [];
+          const notFoundProjects: string[] = [];
+          const ambiguousProjects: Array<{ source: string; matches: string[] }> = [];
+
+          for (const candidate of projectCandidates) {
+            const exactCandidate = this.normalizeProjectExactName(candidate);
+            const normalizedCandidate = this.normalizeProjectName(candidate);
+
+            const exactMatches = projectByExactName.get(exactCandidate) ?? [];
+            if (exactMatches.length === 1) {
+              const matched = exactMatches[0];
+              if (!matchedProjects.some((project) => project.id === matched.id)) {
+                matchedProjects.push(matched);
+              }
+              continue;
+            }
+
+            const normalizedMatches = projectByNormalizedName.get(normalizedCandidate) ?? [];
+            if (normalizedMatches.length === 1) {
+              const matched = normalizedMatches[0];
+              if (!matchedProjects.some((project) => project.id === matched.id)) {
+                matchedProjects.push(matched);
+              }
+              continue;
+            }
+
+            if (exactMatches.length > 1 || normalizedMatches.length > 1) {
+              const matches = (exactMatches.length > 1 ? exactMatches : normalizedMatches).map(
+                (project) => project.nombre,
+              );
+              ambiguousProjects.push({
+                source: candidate,
+                matches,
+              });
+              continue;
+            }
+
+            if (normalizedMatches.length === 0) {
+              notFoundProjects.push(candidate);
+              continue;
+            }
+          }
+
+          if (ambiguousProjects.length > 0) {
+            errors.push({
+              sheet: sheet.name,
+              row: rowNumber,
+              reason: `Proyecto ambiguo en Excel: ${ambiguousProjects
+                .map((item) => `${item.source} → ${item.matches.join(' / ')}`)
+                .join('; ')}`,
+            });
+            continue;
+          }
+
+          if (notFoundProjects.length > 0 || matchedProjects.length === 0) {
+            errors.push({
+              sheet: sheet.name,
+              row: rowNumber,
+              reason: `No se encontró proyecto asignado al usuario para: ${notFoundProjects.join(', ') || String(rawProyecto)}`,
+            });
+            continue;
+          }
+
+          const totalMinutes = Math.max(1, Math.round(horas * 60));
+          const baseMinutes = Math.floor(totalMinutes / matchedProjects.length);
+          let remainder = totalMinutes % matchedProjects.length;
+          const descripcion = String(rawTarea ?? '').trim() || null;
+
+          matchedProjects.forEach((project) => {
+            const minutesForProject = baseMinutes + (remainder > 0 ? 1 : 0);
+            if (remainder > 0) remainder -= 1;
+
+            pendingRows.push({
+              fecha,
+              proyectoId: project.id,
+              proyectoNombre: project.nombre,
+              minutos: minutesForProject,
+              descripcion,
+            });
+          });
+          importedSourceRows += 1;
+        }
+      }
+
+      if (errors.length > 0) {
+        throw new BadRequestException({
+          message: 'El Excel tiene filas que no se pudieron procesar. No se importó ninguna hora.',
+          allProcessed: false,
+          ignoredRows,
+          errors,
+        });
+      }
+
+      if (pendingRows.length === 0) {
+        throw new BadRequestException({
+          message: 'No se encontraron filas válidas para importar.',
+          allProcessed: false,
+          ignoredRows,
+          errors: [],
+        });
+      }
+
+      const groupedByProject = new Map<
+        string,
+        { proyectoId: string; proyectoNombre: string; minutosCargados: number; registrosCreados: number }
+      >();
+
+      pendingRows.forEach((entry) => {
+        const current = groupedByProject.get(entry.proyectoId) ?? {
+          proyectoId: entry.proyectoId,
+          proyectoNombre: entry.proyectoNombre,
+          minutosCargados: 0,
+          registrosCreados: 0,
+        };
+        current.minutosCargados += entry.minutos;
+        current.registrosCreados += 1;
+        groupedByProject.set(entry.proyectoId, current);
+      });
+
+      await this.dataSource.transaction(async (manager) => {
+        const entities = pendingRows.map((row) =>
+          manager.create(Hora, {
+            userId: user.id,
+            proyectoId: row.proyectoId,
+            fecha: row.fecha,
+            minutos: row.minutos,
+            descripcion: row.descripcion,
+          }),
+        );
+        await manager.save(Hora, entities);
+      });
+
+      const proyectos = Array.from(groupedByProject.values())
+        .map((project) => ({
+          ...project,
+          horasCargadas: Number((project.minutosCargados / 60).toFixed(2)),
+        }))
+        .sort((a, b) => a.proyectoNombre.localeCompare(b.proyectoNombre, 'es', { sensitivity: 'base' }));
+
+      return {
+        userId: user.id,
+        userEmail: user.email,
+        allProcessed: true,
+        sheetsProcessed: workbook.worksheets.length,
+        importedSourceRows,
+        createdEntries: pendingRows.length,
+        ignoredRows,
+        proyectos,
       };
     }
 

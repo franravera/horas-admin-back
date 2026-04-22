@@ -98,7 +98,8 @@ async findAll(params: { userId: string; role: ValidRoles }) {
       'u.role',
       'u.is_active',
     ])
-    .orderBy('p.createdAt', 'DESC');
+    .orderBy('LOWER(TRIM(p.nombre))', 'ASC')
+    .addOrderBy('p.createdAt', 'DESC');
 
   // ✅ user/editor: solo SUS proyectos, y solo ÉL como miembro (no ve compañeros)
   if (role !== ValidRoles.admin) {
@@ -124,77 +125,88 @@ async findAllPaginated(params: {
     throw new BadRequestException('userId requerido');
   }
 
-  const dataQb = this.proyectoRepo
+  const applyVisibilityFilters = <T>(qb: T & {
+    where: (...args: any[]) => T;
+    andWhere: (...args: any[]) => T;
+  }) => {
+    qb.where('p.deletedAt IS NULL');
+
+    if (searchInput?.trim()) {
+      qb.andWhere('(p.nombre ILIKE :q OR p.descripcion ILIKE :q)', {
+        q: `%${searchInput.trim()}%`,
+      });
+    }
+
+    if (role !== ValidRoles.admin) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM proyectos_miembros pmOwn
+          WHERE pmOwn."proyectoId" = p.id
+            AND pmOwn."userId" = :userId
+            AND pmOwn."is_active" = true
+        )`,
+        { userId },
+      );
+    }
+
+    return qb;
+  };
+
+  const idsQb = applyVisibilityFilters(
+    this.proyectoRepo
+      .createQueryBuilder('p')
+      .select(['p.id as id'])
+      .orderBy('LOWER(TRIM(p.nombre))', 'ASC')
+      .addOrderBy('p.createdAt', 'DESC')
+      .offset(offset)
+      .limit(limit),
+  );
+
+  const countQb = applyVisibilityFilters(
+    this.proyectoRepo
+    .createQueryBuilder('p')
+      .select('COUNT(DISTINCT p.id)', 'totalRows'),
+  );
+
+  const [pageIdsRaw, countRaw] = await Promise.all([
+    idsQb.getRawMany() as Promise<Array<{ id: string }>>,
+    countQb.getRawOne() as Promise<{ totalRows: string } | undefined>,
+  ]);
+
+  const pageIds = pageIdsRaw.map((row) => row.id).filter(Boolean);
+
+  if (pageIds.length === 0) {
+    return {
+      data: [],
+      totalRows: Number(countRaw?.totalRows ?? 0),
+    };
+  }
+
+  const rows = await this.proyectoRepo
     .createQueryBuilder('p')
     .leftJoin('p.miembros', 'pmActive', 'pmActive.is_active = true')
-    .where('p.deletedAt IS NULL')
+    .leftJoin(User, 'uActive', 'uActive.id = pmActive.userId AND uActive.deletedAt IS NULL')
+    .where('p.id IN (:...pageIds)', { pageIds })
     .select([
       'p.id as id',
       'p.nombre as nombre',
       'p.descripcion as descripcion',
       'p.is_active as is_active',
       'p.createdAt as createdAt',
-      'COUNT(DISTINCT pmActive.userId) as "miembrosCount"',
+      'COUNT(DISTINCT uActive.id) as "miembrosCount"',
     ])
     .groupBy('p.id')
-    .orderBy('p.createdAt', 'DESC')
-    .take(limit)
-    .skip(offset);
-
-  if (searchInput?.trim()) {
-    dataQb.andWhere('(p.nombre ILIKE :q OR p.descripcion ILIKE :q)', {
-      q: `%${searchInput.trim()}%`,
-    });
-  }
-
-  if (role !== ValidRoles.admin) {
-    dataQb.andWhere(
-      `EXISTS (
-        SELECT 1
-        FROM proyectos_miembros pmOwn
-        WHERE pmOwn."proyectoId" = p.id
-          AND pmOwn."userId" = :userId
-          AND pmOwn."is_active" = true
-      )`,
-      { userId },
-    );
-  }
-
-  const countQb = this.proyectoRepo
-    .createQueryBuilder('p')
-    .where('p.deletedAt IS NULL')
-    .select('COUNT(1)', 'totalRows');
-
-  if (searchInput?.trim()) {
-    countQb.andWhere('(p.nombre ILIKE :q OR p.descripcion ILIKE :q)', {
-      q: `%${searchInput.trim()}%`,
-    });
-  }
-
-  if (role !== ValidRoles.admin) {
-    countQb.andWhere(
-      `EXISTS (
-        SELECT 1
-        FROM proyectos_miembros pmOwn
-        WHERE pmOwn."proyectoId" = p.id
-          AND pmOwn."userId" = :userId
-          AND pmOwn."is_active" = true
-      )`,
-      { userId },
-    );
-  }
-
-  const [rows, countRaw] = await Promise.all([
-    dataQb.getRawMany<{
+    .orderBy('LOWER(TRIM(p.nombre))', 'ASC')
+    .addOrderBy('p.createdAt', 'DESC')
+    .getRawMany<{
       id: string;
       nombre: string;
       descripcion: string | null;
       is_active: boolean;
       createdAt: string;
       miembrosCount: string;
-    }>(),
-    countQb.getRawOne<{ totalRows: string }>(),
-  ]);
+    }>();
 
   const data = rows.map((r) => ({
     id: r.id,
@@ -366,7 +378,8 @@ async findAllPaginated(params: {
         .where('pm.userId = :userId', { userId })
         .andWhere('pm.is_active = true')
         .andWhere('p.deletedAt IS NULL')
-        .orderBy('p.createdAt', 'DESC')
+        .orderBy('LOWER(TRIM(p.nombre))', 'ASC')
+        .addOrderBy('p.createdAt', 'DESC')
         .getRawMany();
   
       // Si querés devolver rol también, lo podés dejar en el objeto

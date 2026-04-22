@@ -1,4 +1,5 @@
-import {
+  import {
+    BadRequestException,
     Body,
     Controller,
     Delete,
@@ -10,12 +11,19 @@ import {
     Req,
     ParseUUIDPipe,
     Res,
+    UploadedFile,
+    UseInterceptors,
   } from '@nestjs/common';
+  import { existsSync, unlinkSync } from 'fs';
+  import { extname } from 'path';
   import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
   import { Response } from 'express';
+  import { ApiBody, ApiConsumes, ApiResponse } from '@nestjs/swagger';
+  import { FileInterceptor } from '@nestjs/platform-express';
   
   import { HorasService } from './horas.service';
   import { CreateHoraDto } from './dto/create-hora.dto';
+  import { ImportHorasExcelDto } from './dto/import-horas-excel.dto';
   import { UpdateHoraDto } from './dto/update-hora.dto';
   
   import { Auth } from '../auth/decorators/auth.decorator';
@@ -69,6 +77,62 @@ import {
     @Auth()
     misNotificaciones(@Req() req: any) {
       return this.horasService.getMisNotificaciones(req.user.id, req.user.role);
+    }
+
+    @Post('import-excel')
+    @Auth(ValidRoles.admin)
+    @UseInterceptors(FileInterceptor('file'))
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+      schema: {
+        type: 'object',
+        required: ['email', 'file'],
+        properties: {
+          email: {
+            type: 'string',
+            format: 'email',
+          },
+          file: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+    })
+    @ApiResponse({
+      status: 201,
+      description:
+        'Importa las horas de un Excel para el usuario indicado y devuelve el detalle cargado por proyecto.',
+    })
+    async importExcel(
+      @Req() req: any,
+      @Body() dto: ImportHorasExcelDto,
+      @UploadedFile() file: Express.Multer.File,
+    ) {
+      if (!file || (!file.buffer?.length && !file.path)) {
+        throw new BadRequestException('Debés adjuntar un archivo Excel válido.');
+      }
+
+      const fileExt = extname(file.originalname || '').toLowerCase();
+      if (!['.xlsx', '.xls'].includes(fileExt)) {
+        throw new BadRequestException('El archivo debe ser un Excel (.xlsx o .xls).');
+      }
+
+      try {
+        const result = await this.horasService.importHorasFromExcel({
+          requesterId: req.user.id,
+          requesterRole: req.user.role,
+          userEmail: dto.email,
+          filePath: file.path,
+          fileBuffer: file.buffer,
+        });
+        await this.horasGateway.emitUserNotifications(result.userId);
+        return result;
+      } finally {
+        if (file.path && existsSync(file.path)) {
+          unlinkSync(file.path);
+        }
+      }
     }
 
     @Get('export-excel')

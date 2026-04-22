@@ -28,6 +28,9 @@ async function bootstrap() {
     "http://localhost:5173",
     "http://192.168.0.59:4200",
     "http://138.219.42.213:4200",
+    "https://vps-5859241-x.dattaweb.com"
+
+
   ];
 
   const isLanOrigin = (origin: string) =>
