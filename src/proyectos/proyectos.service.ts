@@ -252,7 +252,7 @@ async findAllPaginated(params: {
       if (dto.descripcion !== undefined)
         proyecto.descripcion = dto.descripcion?.trim() ?? null;
       if (dto.is_active !== undefined) proyecto.is_active = dto.is_active;
-  
+
       return this.proyectoRepo.save(proyecto);
     }
   
