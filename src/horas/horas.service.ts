@@ -369,6 +369,15 @@
       if (typeof value === 'string') {
         const raw = value.trim();
         if (!raw || raw === '-') return null;
+        const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+        if (hhmm) {
+          const hours = Number(hhmm[1]);
+          const minutes = Number(hhmm[2]);
+          if (minutes >= 0 && minutes <= 59) {
+            return hours + minutes / 60;
+          }
+          return null;
+        }
         const normalized = raw.replace(',', '.');
         const parsed = Number(normalized);
         return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -396,6 +405,13 @@
         return Number.isFinite(parsed) ? parsed : null;
       }
       return null;
+    }
+
+    private formatMinutesAsClock(totalMinutes: number): string {
+      const safeMinutes = Math.max(0, Math.round(totalMinutes));
+      const hours = Math.floor(safeMinutes / 60);
+      const minutes = safeMinutes % 60;
+      return `${hours}:${String(minutes).padStart(2, '0')}`;
     }
 
     private splitProjectCandidates(value: unknown): string[] {
@@ -1036,16 +1052,17 @@
           noData.font = { italic: true, color: { argb: theme.muted } };
         } else {
           userRows.forEach((r) => {
-            const hours = Number((Number(r.minutos) / 60).toFixed(2));
-            totalMinutesUser += Number(r.minutos);
+            const minutes = Number(r.minutos);
+            const hours = this.formatMinutesAsClock(minutes);
+            totalMinutesUser += minutes;
             totalsByProject.set(
               r.proyectoNombre,
-              (totalsByProject.get(r.proyectoNombre) ?? 0) + Number(r.minutos),
+              (totalsByProject.get(r.proyectoNombre) ?? 0) + minutes,
             );
 
             totalsByProjectGlobal.set(
               r.proyectoNombre,
-              (totalsByProjectGlobal.get(r.proyectoNombre) ?? 0) + Number(r.minutos),
+              (totalsByProjectGlobal.get(r.proyectoNombre) ?? 0) + minutes,
             );
 
             const dataRow = ws.addRow([
@@ -1075,7 +1092,7 @@
         ws.mergeCells(`B${sumHeader.number}:D${sumHeader.number}`);
 
         totalsByProject.forEach((mins, project) => {
-          const r = ws.addRow([project, Number((mins / 60).toFixed(2))]);
+          const r = ws.addRow([project, this.formatMinutesAsClock(mins)]);
           ws.mergeCells(`B${r.number}:D${r.number}`);
           styleTableRow(r);
         });
@@ -1083,7 +1100,7 @@
         ws.addRow([]);
         const totalRow = ws.addRow([
           'Total general usuario',
-          Number((totalMinutesUser / 60).toFixed(2)),
+          this.formatMinutesAsClock(totalMinutesUser),
         ]);
         ws.mergeCells(`B${totalRow.number}:D${totalRow.number}`);
         styleTableRow(totalRow);
@@ -1121,7 +1138,7 @@
         0,
       );
 
-      const k1 = summary.addRow(['Total horas (rango)', Number((grandTotalMinutes / 60).toFixed(2))]);
+      const k1 = summary.addRow(['Total horas (rango)', this.formatMinutesAsClock(grandTotalMinutes)]);
       const k2 = summary.addRow(['Usuarios considerados', totalsByUserGlobal.size]);
       const k3 = summary.addRow(['Proyectos con carga', totalsByProjectGlobal.size]);
       [k1, k2, k3].forEach((r) => styleTableRow(r));
@@ -1139,7 +1156,7 @@
       const ph2 = summary.addRow(['Proyecto', 'Horas']);
       styleHeaderRow(ph2);
       totalsByProjectGlobal.forEach((mins, project) => {
-        const r = summary.addRow([project, Number((mins / 60).toFixed(2))]);
+        const r = summary.addRow([project, this.formatMinutesAsClock(mins)]);
         styleTableRow(r);
       });
 
@@ -1156,7 +1173,7 @@
       const uh2 = summary.addRow(['Usuario', 'Horas']);
       styleHeaderRow(uh2);
       totalsByUserGlobal.forEach((u) => {
-        const r = summary.addRow([u.name, Number((u.minutes / 60).toFixed(2))]);
+        const r = summary.addRow([u.name, this.formatMinutesAsClock(u.minutes)]);
         styleTableRow(r);
       });
       summary.columns = [{ width: 52 }, { width: 18 }];
