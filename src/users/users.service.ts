@@ -81,24 +81,27 @@ export class UsersService {
       sortOrder,
     } = paginationDto;
 
-    const usersQuery = await this.userRepository
+    const usersQuery = this.userRepository
       .createQueryBuilder('user')
       .take(limit)
-      .skip(offset);
+      .skip(offset)
+      .where('user.deletedAt IS NULL');
 
-    if (searchInput) {
+    if (searchInput?.trim()) {
+      const q = `%${searchInput.trim()}%`;
       usersQuery.andWhere(
-        `user.last_name ilike :lastName OR user.first_name ilike :firstName OR user.email ilike :mail OR user.equipo ilike :equipo`,
-        {
-          lastName: `%${searchInput}%`,
-          firstName: `%${searchInput}%`,
-          mail: `%${searchInput}%`,
-          equipo: `%${searchInput}%`,
-        },
+        `(user.last_name ILIKE :q OR user.first_name ILIKE :q OR user.email ILIKE :q OR CAST(user.equipo AS text) ILIKE :q)`,
+        { q },
       );
     }
+
     if (sortField && sortOrder) {
       usersQuery.orderBy(`user.${sortField}`, `${sortOrder}`);
+    } else {
+      usersQuery
+        .orderBy(`LOWER(TRIM(COALESCE(user.first_name, '')))`, 'ASC')
+        .addOrderBy(`LOWER(TRIM(COALESCE(user.last_name, '')))`, 'ASC')
+        .addOrderBy(`LOWER(TRIM(user.email))`, 'ASC');
     }
 
     const users = await usersQuery.getMany();
