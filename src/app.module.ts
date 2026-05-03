@@ -32,6 +32,7 @@ import { UserSiteModule } from './user-site/user-site.module';
 import { ProyectosModule } from './proyectos/proyectos.module';
 import { HorasModule } from './horas/horas.module';
 import { ChatModule } from './chat/chat.module';
+import { TareasModule } from './tareas/tareas.module';
 
 
 
@@ -128,6 +129,7 @@ import { ChatModule } from './chat/chat.module';
     UtilsModule,
     HorasModule,
     ChatModule,
+    TareasModule,
     
     /* Users Module */
 
