@@ -160,7 +160,7 @@ export class AuthService {
 
     // Validar contraseña regular (permanente)
     if (user.password) {
-      console.log(`🔑 Contraseña ingresada: ${password}`);
+      // console.log(`🔑 Contraseña ingresada: ${password}`);
       console.log(`🔒 Hash almacenado en BD: ${user.password}`);
   
       const isPasswordMatch = bcrypt.compareSync(password, user.password);

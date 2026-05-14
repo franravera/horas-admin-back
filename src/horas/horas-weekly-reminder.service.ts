@@ -34,17 +34,30 @@ export class HorasWeeklyReminderService {
 
     if (activeUsers.length === 0) {
       this.logger.log('No hay usuarios activos para evaluar recordatorios semanales de horas.');
-      return;
+      return {
+        totalActiveUsers: 0,
+        skippedWithoutEmail: 0,
+        pendingUsers: 0,
+        sent: 0,
+        failed: 0,
+      };
     }
 
     let sent = 0;
+    let failed = 0;
+    let skippedWithoutEmail = 0;
+    let pendingUsers = 0;
 
     for (const user of activeUsers) {
-      if (!user.email) continue;
+      if (!user.email) {
+        skippedWithoutEmail += 1;
+        continue;
+      }
 
       try {
         const summary = await this.horasService.getPreviousWeekPendingSummary(user.id);
         if (summary.missing.length === 0) continue;
+        pendingUsers += 1;
 
         const templatesPath = this.configService.get<string>('FILES_TEMPLATES') || './static/templates';
         const logoPath = join(process.cwd(), templatesPath, '18dev-blanco.png');
@@ -71,12 +84,21 @@ export class HorasWeeklyReminderService {
 
         sent += 1;
       } catch (error) {
+        failed += 1;
         const message = error instanceof Error ? error.message : String(error);
         this.logger.error(`No se pudo enviar el recordatorio semanal a ${user.email}: ${message}`);
       }
     }
 
     this.logger.log(`Recordatorios semanales de horas enviados: ${sent}`);
+
+    return {
+      totalActiveUsers: activeUsers.length,
+      skippedWithoutEmail,
+      pendingUsers,
+      sent,
+      failed,
+    };
   }
 
   private buildEmailHtml(params: {

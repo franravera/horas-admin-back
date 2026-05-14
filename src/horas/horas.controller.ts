@@ -4,6 +4,9 @@
     Controller,
     Delete,
     Get,
+    HttpCode,
+    HttpStatus,
+    Logger,
     Param,
     Patch,
     Post,
@@ -16,12 +19,13 @@
   } from '@nestjs/common';
   import { existsSync, unlinkSync } from 'fs';
   import { extname } from 'path';
-  import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+  import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
   import { Response } from 'express';
   import { ApiBody, ApiConsumes, ApiResponse } from '@nestjs/swagger';
   import { FileInterceptor } from '@nestjs/platform-express';
   
   import { HorasService } from './horas.service';
+  import { HorasWeeklyReminderService } from './horas-weekly-reminder.service';
   import { CreateHoraDto } from './dto/create-hora.dto';
   import { ImportHorasExcelDto } from './dto/import-horas-excel.dto';
   import { UpdateHoraDto } from './dto/update-hora.dto';
@@ -35,9 +39,12 @@
   @ApiBearerAuth()
   @Controller('horas')
   export class HorasController {
+    private readonly logger = new Logger(HorasController.name);
+
     constructor(
       private readonly horasService: HorasService,
       private readonly horasGateway: HorasNotificationsGateway,
+      private readonly horasWeeklyReminderService: HorasWeeklyReminderService,
     ) {}
   
     // =========================================================
@@ -192,5 +199,33 @@
         await this.horasGateway.emitUserNotifications(removed.userId);
       }
       return removed;
+    }
+
+    @Post('weekly-reminder/send')
+    @HttpCode(HttpStatus.ACCEPTED)
+    @Auth(ValidRoles.admin)
+    @ApiOperation({
+      summary: 'Ejecuta manualmente el recordatorio semanal de horas pendientes',
+      description:
+        'Dispara el mismo proceso usado por el cron semanal, pero responde de inmediato y continúa en background.',
+    })
+    @ApiResponse({
+      status: 202,
+      description: 'Proceso de recordatorio semanal iniciado correctamente.',
+    })
+    @ApiResponse({
+      status: 401,
+      description: 'Unauthorized Request',
+    })
+    sendWeeklyReminderManually() {
+      void this.horasWeeklyReminderService.sendPreviousWeekPendingHoursEmails().catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Falló la ejecución manual del recordatorio semanal: ${message}`);
+      });
+
+      return {
+        message: 'Proceso iniciado correctamente.',
+        status: 'accepted',
+      };
     }
   }

@@ -183,6 +183,14 @@
       return new Date(year, month - 1, day);
     }
 
+    private normalizeDateKey(value: string | Date) {
+      if (value instanceof Date) {
+        return this.toYmd(value);
+      }
+
+      return String(value).slice(0, 10);
+    }
+
     private getCurrentWeekRange(referenceDate = new Date()) {
       const today = this.startOfDay(referenceDate);
       const jsDay = today.getDay(); // 0 dom ... 6 sab
@@ -227,10 +235,12 @@
         .andWhere('h.fecha <= :hasta', { hasta })
         .groupBy('h.fecha')
         .orderBy('h.fecha', 'ASC')
-        .getRawMany<{ fecha: string; minutos: string }>();
+      .getRawMany<{ fecha: string | Date; minutos: string }>();
 
       const byDate = new Map<string, number>();
-      rows.forEach((r) => byDate.set(r.fecha, Number(r.minutos ?? 0)));
+      rows.forEach((r) =>
+        byDate.set(this.normalizeDateKey(r.fecha), Number(r.minutos ?? 0)),
+      );
 
       const targetMinutes = this.getTargetMinutes();
       const missing: Array<{ fecha: string; faltanHoras: number }> = [];
