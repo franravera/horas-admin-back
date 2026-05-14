@@ -96,6 +96,13 @@ export class User {
   @Column("int", { nullable: true })
   extension: number = null;
 
+  @ApiProperty({ nullable: false, default: 8 })
+  @Column('int', {
+    nullable: false,
+    default: 8,
+  })
+  required_hours_per_day: number;
+
   @ApiProperty({
     enum: UserTeam,
     nullable: true,

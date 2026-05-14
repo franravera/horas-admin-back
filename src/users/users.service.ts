@@ -158,6 +158,7 @@ export class UsersService {
     if (!isAdmin) {
       delete safeDto.role;
       delete safeDto.is_active;
+      delete safeDto.required_hours_per_day;
       delete safeDto.temporary_password;
       delete safeDto.temporary_password_expires_at;
       delete safeDto.relatedUserIds;

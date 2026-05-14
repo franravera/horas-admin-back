@@ -152,13 +152,28 @@
       return { ok: true, userId: hora.userId };
     }
 
-    private getRequiredHoursPerDay() {
+    private getDefaultRequiredHoursPerDay() {
       const raw = Number(this.configService.get<string>('HORAS_REQUIRED_HOURS_PER_DAY') ?? '8');
       return Number.isFinite(raw) && raw > 0 ? raw : 8;
     }
 
-    private getTargetMinutes() {
-      return this.getRequiredHoursPerDay() * 60;
+    private normalizeRequiredHoursPerDay(value?: number | null) {
+      return Number.isFinite(value) && Number(value) > 0
+        ? Number(value)
+        : this.getDefaultRequiredHoursPerDay();
+    }
+
+    private async getRequiredHoursPerDayForUser(userId: string) {
+      const user = await this.userRepo.findOne({
+        where: { id: userId },
+        select: ['id', 'required_hours_per_day'],
+      });
+
+      return this.normalizeRequiredHoursPerDay(user?.required_hours_per_day);
+    }
+
+    private getTargetMinutes(requiredHoursPerDay?: number | null) {
+      return this.normalizeRequiredHoursPerDay(requiredHoursPerDay) * 60;
     }
 
     private startOfDay(date: Date) {
@@ -225,7 +240,12 @@
       };
     }
 
-    async getMissingHoursForRange(userId: string, desde: string, hasta: string) {
+    async getMissingHoursForRange(
+      userId: string,
+      desde: string,
+      hasta: string,
+      requiredHoursPerDay?: number,
+    ) {
       const rows = await this.horaRepo
         .createQueryBuilder('h')
         .select('h.fecha', 'fecha')
@@ -242,7 +262,9 @@
         byDate.set(this.normalizeDateKey(r.fecha), Number(r.minutos ?? 0)),
       );
 
-      const targetMinutes = this.getTargetMinutes();
+      const resolvedRequiredHoursPerDay =
+        requiredHoursPerDay ?? (await this.getRequiredHoursPerDayForUser(userId));
+      const targetMinutes = this.getTargetMinutes(resolvedRequiredHoursPerDay);
       const missing: Array<{ fecha: string; faltanHoras: number }> = [];
       const cursor = this.parseYmd(desde);
       const end = this.parseYmd(hasta);
@@ -267,7 +289,13 @@
 
     async getMisNotificaciones(requesterId: string, _requesterRole: Role) {
       const { jsDay, desde, hasta } = this.getCurrentWeekRange();
-      const missing = await this.getMissingHoursForRange(requesterId, desde, hasta);
+      const requiredHoursPerDay = await this.getRequiredHoursPerDayForUser(requesterId);
+      const missing = await this.getMissingHoursForRange(
+        requesterId,
+        desde,
+        hasta,
+        requiredHoursPerDay,
+      );
 
       const notifications: Array<{
         id: string;
@@ -299,20 +327,31 @@
       return {
         desde,
         hasta,
-        requiredHoursPerDay: this.getRequiredHoursPerDay(),
+        requiredHoursPerDay,
         total: notifications.length,
         notifications,
       };
     }
 
-    async getPreviousWeekPendingSummary(userId: string, referenceDate = new Date()) {
+    async getPreviousWeekPendingSummary(
+      userId: string,
+      referenceDate = new Date(),
+      requiredHoursPerDay?: number,
+    ) {
       const { desde, hasta } = this.getPreviousWeekRange(referenceDate);
-      const missing = await this.getMissingHoursForRange(userId, desde, hasta);
+      const resolvedRequiredHoursPerDay =
+        requiredHoursPerDay ?? (await this.getRequiredHoursPerDayForUser(userId));
+      const missing = await this.getMissingHoursForRange(
+        userId,
+        desde,
+        hasta,
+        resolvedRequiredHoursPerDay,
+      );
 
       return {
         desde,
         hasta,
-        requiredHoursPerDay: this.getRequiredHoursPerDay(),
+        requiredHoursPerDay: resolvedRequiredHoursPerDay,
         missing,
       };
     }

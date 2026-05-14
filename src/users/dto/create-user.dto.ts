@@ -10,8 +10,11 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  IsInt,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from "class-validator";
 import { ValidRoles } from "src/auth/interfaces";
@@ -88,6 +91,17 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(UserTeam)
   equipo?: UserTeam;
+
+  @ApiProperty({
+    required: false,
+    default: 8,
+    description: 'Horas requeridas por día hábil para este usuario',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  required_hours_per_day?: number;
 
   @ApiProperty({ nullable: true, required: false })
   @IsOptional()

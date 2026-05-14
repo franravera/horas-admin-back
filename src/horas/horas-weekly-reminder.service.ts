@@ -29,7 +29,7 @@ export class HorasWeeklyReminderService {
   async sendPreviousWeekPendingHoursEmails() {
     const activeUsers = await this.userRepo.find({
       where: { is_active: true },
-      select: ['id', 'email', 'first_name', 'last_name'],
+      select: ['id', 'email', 'first_name', 'last_name', 'required_hours_per_day'],
     });
 
     if (activeUsers.length === 0) {
@@ -55,7 +55,11 @@ export class HorasWeeklyReminderService {
       }
 
       try {
-        const summary = await this.horasService.getPreviousWeekPendingSummary(user.id);
+        const summary = await this.horasService.getPreviousWeekPendingSummary(
+          user.id,
+          new Date(),
+          user.required_hours_per_day,
+        );
         if (summary.missing.length === 0) continue;
         pendingUsers += 1;
 
